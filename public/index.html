@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Business AEO Audit</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #171a21; --card-border: #262a33; --text: #e8eaed;
+    --muted: #9aa0ab; --accent: #6c8cff; --green: #3ddc84; --yellow: #f4c542; --red: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 40px 20px 80px; }
+  header.top { text-align: center; margin-bottom: 32px; }
+  header.top h1 { font-size: 26px; margin-bottom: 6px; }
+  header.top p { color: var(--muted); margin: 0; }
+  form.audit-form { display: flex; gap: 10px; margin: 24px 0 8px; }
+  form.audit-form input[type=text] { flex: 1; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--card-border); background: var(--card); color: var(--text); font-size: 15px; }
+  form.audit-form button { padding: 14px 22px; border-radius: 10px; border: none; background: var(--accent); color: #0b0d12; font-weight: 600; cursor: pointer; font-size: 15px; }
+  form.audit-form button:disabled { opacity: .5; cursor: default; }
+  form.audit-form button:hover:not(:disabled) { opacity: .9; }
+  .error { color: var(--red); margin: 8px 0 0; font-size: 14px; }
+  .loading { color: var(--muted); margin: 8px 0 0; font-size: 14px; }
+  .score-block { display: flex; align-items: center; gap: 28px; background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 28px; margin: 28px 0; }
+  .score-circle { width: 110px; height: 110px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; border: 6px solid var(--accent); }
+  .score-circle .num { font-size: 30px; line-height: 1; }
+  .score-circle .grade { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .score-meta h2 { margin: 0 0 6px; font-size: 18px; word-break: break-all; }
+  .score-meta .sub { color: var(--muted); font-size: 13px; }
+  .grade-A, .grade-B { border-color: var(--green); }
+  .grade-C, .grade-D { border-color: var(--yellow); }
+  .grade-F { border-color: var(--red); }
+  .category { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; }
+  .category .cat-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .category .cat-head h3 { margin: 0; font-size: 16px; }
+  .category .cat-head .cat-score { font-weight: 700; color: var(--accent); }
+  .category .cat-desc { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .bar-track { height: 6px; border-radius: 3px; background: #262a33; overflow: hidden; margin-bottom: 16px; }
+  .bar-fill { height: 100%; background: var(--accent); }
+  .check-row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--card-border); }
+  .check-row:first-of-type { border-top: none; }
+  .check-name { font-size: 14px; }
+  .check-detail { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .check-points { flex-shrink: 0; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .pts-full { color: var(--green); }
+  .pts-partial { color: var(--yellow); }
+  .pts-zero { color: var(--red); }
+  footer.note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 40px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Business AEO Audit</h1>
+    <p>How ready is a business website to be crawled, understood, and cited by AI search (ChatGPT, Claude, Perplexity, Google AI Overviews)?</p>
+  </header>
+
+  <form class="audit-form" id="auditForm">
+    <input type="text" id="urlInput" placeholder="https://example-business.com" required>
+    <button type="submit" id="submitBtn">Run audit</button>
+  </form>
+  <p class="error" id="errorMsg" style="display:none"></p>
+  <p class="loading" id="loadingMsg" style="display:none">Auditing… this takes a few seconds.</p>
+
+  <div id="report"></div>
+
+  <footer class="note">Client calls a Netlify Function that fetches and grades the target site — nothing runs in your browser except rendering the report.</footer>
+</div>
+
+<script>
+const CAT_META = {
+  fetchability: ["Fetchability & Crawler Access", "Can an LLM crawler actually reach this URL? Cloudflare/WAF blocks, missing AI bot allowlists, and JS-only pages all fail here."],
+  seo: ["Core SEO", "Title, description, canonical, OpenGraph, sitemap — the foundation every search/answer engine expects."],
+  semantic: ["Semantic HTML", "Headings, landmarks, alt text — structure that lets AI parse the page meaningfully."],
+  answer_engine: ["Answer Engine Signals", "llms.txt, JSON-LD, author authority, freshness, readability — the signals AI search weighs heavily."],
+  content_quality: ["Content Quality", "Front-loaded answers, question-shaped headings, statistics, citations — what moves the needle in AI answers."]
+};
+const CAT_ORDER = ["fetchability", "seo", "semantic", "answer_engine", "content_quality"];
+
+const form = document.getElementById("auditForm");
+const urlInput = document.getElementById("urlInput");
+const submitBtn = document.getElementById("submitBtn");
+const errorMsg = document.getElementById("errorMsg");
+const loadingMsg = document.getElementById("loadingMsg");
+const report = document.getElementById("report");
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+
+function ptsClass(points, max) {
+  if (points === max) return "pts-full";
+  if (points === 0) return "pts-zero";
+  return "pts-partial";
+}
+
+function render(result) {
+  report.innerHTML = "";
+  const scoreBlock = document.createElement("div");
+  scoreBlock.className = "score-block";
+  scoreBlock.innerHTML = `
+    <div class="score-circle grade-${esc(result.grade)}">
+      <div class="num">${esc(result.score)}</div>
+      <div class="grade">${esc(result.grade)}</div>
+    </div>
+    <div class="score-meta">
+      <h2>${esc(result.url)}</h2>
+      <div class="sub">HTTP ${esc(result.status_code)} · ${esc(result.size_kb)} KB · fetched in ${esc(result.fetch_seconds)}s · raw ${esc(result.raw_points)}/${esc(result.max_points)} points</div>
+    </div>`;
+  report.appendChild(scoreBlock);
+
+  for (const catKey of CAT_ORDER) {
+    const catChecks = result.checks.filter((c) => c.category === catKey);
+    if (!catChecks.length) continue;
+    const catMax = catChecks.reduce((a, c) => a + c.max, 0);
+    const catScore = result.categories[catKey] || 0;
+    const [title, desc] = CAT_META[catKey];
+    const cat = document.createElement("div");
+    cat.className = "category";
+    let rowsHtml = "";
+    for (const c of catChecks) {
+      rowsHtml += `
+        <div class="check-row">
+          <div>
+            <div class="check-name">${esc(c.name)}</div>
+            <div class="check-detail">${esc(c.detail)}</div>
+          </div>
+          <div class="check-points ${ptsClass(c.points, c.max)}">${esc(c.points)}/${esc(c.max)}</div>
+        </div>`;
+    }
+    cat.innerHTML = `
+      <div class="cat-head"><h3>${esc(title)}</h3><span class="cat-score">${esc(catScore)}/${esc(catMax)}</span></div>
+      <p class="cat-desc">${esc(desc)}</p>
+      <div class="bar-track"><div class="bar-fill" style="width:${catMax ? (catScore / catMax) * 100 : 0}%"></div></div>
+      ${rowsHtml}`;
+    report.appendChild(cat);
+  }
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  errorMsg.style.display = "none";
+  report.innerHTML = "";
+  const url = urlInput.value.trim();
+  if (!url) return;
+  submitBtn.disabled = true;
+  loadingMsg.style.display = "block";
+  try {
+    const res = await fetch(`/.netlify/functions/audit?url=${encodeURIComponent(url)}`);
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || `Request failed (${res.status})`);
+    }
+    if (data.fatal) {
+      errorMsg.textContent = "Couldn't reach that site — check the URL and try again.";
+      errorMsg.style.display = "block";
+    } else {
+      render(data);
+    }
+  } catch (err) {
+    errorMsg.textContent = "Audit failed: " + err.message;
+    errorMsg.style.display = "block";
+  } finally {
+    submitBtn.disabled = false;
+    loadingMsg.style.display = "none";
+  }
+});
+</script>
+</body>
+</html>
+

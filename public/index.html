@@ -38,7 +38,7 @@
   .category .cat-desc { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
   .bar-track { height: 6px; border-radius: 3px; background: #262a33; overflow: hidden; margin-bottom: 16px; }
   .bar-fill { height: 100%; background: var(--accent); }
-  .check-row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--card-border); }
+  .check-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 10px 0; border-top: 1px solid var(--card-border); }
   .check-row:first-of-type { border-top: none; }
   .check-name { font-size: 14px; }
   .check-detail { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
@@ -46,6 +46,8 @@
   .pts-full { color: var(--green); }
   .pts-partial { color: var(--yellow); }
   .pts-zero { color: var(--red); }
+  .check-fix { color: var(--accent); font-size: 12.5px; margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--accent); }
+  .check-fix b { color: var(--text); }
   footer.note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 40px; }
   a { color: var(--accent); }
 </style>
@@ -128,6 +130,7 @@ function render(result) {
           <div>
             <div class="check-name">${esc(c.name)}</div>
             <div class="check-detail">${esc(c.detail)}</div>
+            ${c.fix ? `<div class="check-fix"><b>Fix:</b> ${esc(c.fix)}</div>` : ""}
           </div>
           <div class="check-points ${ptsClass(c.points, c.max)}">${esc(c.points)}/${esc(c.max)}</div>
         </div>`;
@@ -172,4 +175,3 @@ form.addEventListener("submit", async (e) => {
 </script>
 </body>
 </html>
-

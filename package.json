@@ -1,0 +1,8 @@
+{
+  "name": "business-aeo-audit",
+  "version": "1.0.0",
+  "description": "Business AEO Audit - Netlify Function backend for grading website AI-search readiness",
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}

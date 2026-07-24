@@ -87,9 +87,10 @@ const CAT_META = {
   seo: ["Core SEO", "Title, description, canonical, OpenGraph, sitemap — the foundation every search/answer engine expects."],
   semantic: ["Semantic HTML", "Headings, landmarks, alt text — structure that lets AI parse the page meaningfully."],
   answer_engine: ["Answer Engine Signals", "llms.txt, JSON-LD, author authority, freshness, readability — the signals AI search weighs heavily."],
-  content_quality: ["Content Quality", "Front-loaded answers, question-shaped headings, statistics, citations — what moves the needle in AI answers."]
+  content_quality: ["Content Quality", "Front-loaded answers, question-shaped headings, statistics, citations — what moves the needle in AI answers."],
+  local_geo: ["Local & Geo Signals", "Location schema with coordinates, named service-area cities, an embedded map, and NAP consistency — signals that matter for local visibility, separate from general AI-search readiness."]
 };
-const CAT_ORDER = ["fetchability", "seo", "semantic", "answer_engine", "content_quality"];
+const CAT_ORDER = ["fetchability", "seo", "semantic", "answer_engine", "content_quality", "local_geo"];
 
 const form = document.getElementById("auditForm");
 const urlInput = document.getElementById("urlInput");

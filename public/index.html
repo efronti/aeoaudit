@@ -150,10 +150,18 @@ function render(result) {
 
   const priorityBlock = document.createElement("div");
   priorityBlock.className = "priority-block";
+  const categoryMax = {};
+  for (const catKey of CAT_ORDER) {
+    categoryMax[catKey] = result.checks.filter((c) => c.category === catKey).reduce((a, c) => a + c.max, 0);
+  }
   const fixable = result.checks
     .filter((c) => c.fix)
-    .map((c) => ({ ...c, gap: Math.round((c.max - c.points) * 10) / 10 }))
-    .sort((a, b) => b.gap - a.gap)
+    .map((c) => {
+      const gap = Math.round((c.max - c.points) * 10) / 10;
+      const catMax = categoryMax[c.category] || 1;
+      return { ...c, gap, weight: gap / catMax };
+    })
+    .sort((a, b) => b.weight - a.weight)
     .slice(0, 5);
   if (fixable.length) {
     let itemsHtml = "";
@@ -169,7 +177,7 @@ function render(result) {
     });
     priorityBlock.innerHTML = `
       <h3>Priority Fixes</h3>
-      <p class="priority-desc">Ranked by points available — start here for the fastest score improvement.</p>
+      <p class="priority-desc">Ranked by relative impact, balancing core SEO with AI-search readiness — start here for the fastest improvement.</p>
       ${itemsHtml}`;
   } else {
     priorityBlock.innerHTML = `

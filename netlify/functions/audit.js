@@ -15,7 +15,7 @@ const LANDMARKS = ["header", "nav", "main", "article", "section", "footer"];
 const QUESTION_START_RE = /^\s*(who|what|why|how|when|where|which|can|do|does|is|are)\b/i;
 const STAT_RE = /\b\d[\d,]*\.?\d*\s?(%|percent|years?|homes?|days?|dollars?|\$|sq\.?\s?ft|hours?|clients?|deals?|properties)\b/i;
 
-const MAX_POINTS = { fetchability: 43, seo: 21, semantic: 13, answer_engine: 31, content_quality: 6 };
+const MAX_POINTS = { fetchability: 43, seo: 21, semantic: 13, answer_engine: 31, content_quality: 6, local_geo: 12 };
 const TOTAL_MAX = Object.values(MAX_POINTS).reduce((a, b) => a + b, 0);
 
 function round1(n) {
@@ -388,6 +388,70 @@ async function audit(rawUrl) {
   cqCat += quotePts;
 
   result.categories.content_quality = cqCat;
+
+  // ---- Local & Geo Signals ----
+  let geoCat = 0;
+  let hasLocalBusinessSchema = false;
+  let jsonLdPhone = null;
+  $('script[type="application/ld+json"]').each((i, el) => {
+    try {
+      const data = JSON.parse($(el).contents().text());
+      const items = Array.isArray(data) ? data : (data["@graph"] ? data["@graph"] : [data]);
+      for (const item of items) {
+        const type = item["@type"];
+        const typeStr = Array.isArray(type) ? type.join(",") : (type || "");
+        if (/localbusiness|realestateagent|homeandconstructionbusiness|store|organization/i.test(typeStr)) {
+          if (item.address && item.geo && item.geo.latitude && item.geo.longitude) {
+            hasLocalBusinessSchema = true;
+          }
+          if (item.telephone) jsonLdPhone = item.telephone;
+        }
+      }
+    } catch (e) { /* invalid or non-object JSON-LD, ignore */ }
+  });
+
+  const geoSchemaPts = hasLocalBusinessSchema ? 4 : 0;
+  addCheck("local_geo", "LocalBusiness schema with geo-coordinates", geoSchemaPts, 4,
+    hasLocalBusinessSchema ? "Found LocalBusiness/Organization schema with address and geo coordinates" : "No LocalBusiness schema with address + geo coordinates found",
+    hasLocalBusinessSchema ? null : "Add \"address\" and \"geo\" (latitude/longitude) fields to your JSON-LD LocalBusiness schema so AI and map services can pinpoint your service area.");
+  geoCat += geoSchemaPts;
+
+  const cityStateMatches = bodyText.match(/\b[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?,\s?[A-Z]{2}\b/g) || [];
+  const distinctCities = [...new Set(cityStateMatches.map((s) => s.toLowerCase()))];
+  const serviceAreaPts = distinctCities.length >= 3 ? 3 : distinctCities.length >= 1 ? 1.5 : 0;
+  addCheck("local_geo", "Service-area specificity (named cities/towns)", serviceAreaPts, 3,
+    distinctCities.length ? `${distinctCities.length} distinct city/state mention(s) found` : "No specific city/town service-area mentions found",
+    serviceAreaPts < 3 ? "List the specific cities/towns you serve (e.g. \"Grand Rapids, MI, Wyoming, MI, Kentwood, MI\") instead of only a generic \"service area\" phrase." : null);
+  geoCat += serviceAreaPts;
+
+  const hasMap = /maps\.google\.com|google\.com\/maps|maps\/embed|maps\.googleapis/i.test(html);
+  const mapPts = hasMap ? 2 : 0;
+  addCheck("local_geo", "Embedded map", mapPts, 2,
+    hasMap ? "Embedded Google Map detected" : "No embedded map found",
+    hasMap ? null : "Embed a Google Map showing your location or service area — it's a strong, easy local-relevance signal.");
+  geoCat += mapPts;
+
+  const bodyPhoneMatch = bodyText.match(/(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/);
+  const normalizePhone = (p) => (p || "").replace(/\D/g, "").slice(-10);
+  let napPts2, napDetail2, napFix2;
+  if (jsonLdPhone && bodyPhoneMatch) {
+    const match = normalizePhone(jsonLdPhone) === normalizePhone(bodyPhoneMatch[0]);
+    napPts2 = match ? 3 : 0;
+    napDetail2 = match ? "Phone number in structured data matches the phone shown on the page" : `Mismatch: schema shows ${jsonLdPhone}, page shows ${bodyPhoneMatch[0]}`;
+    napFix2 = match ? null : "Make sure the phone number in your JSON-LD structured data exactly matches the phone number shown on the page.";
+  } else if (jsonLdPhone && !bodyPhoneMatch) {
+    napPts2 = 1.5;
+    napDetail2 = "Phone found in structured data but not visible on the page";
+    napFix2 = "Display your phone number visibly on the page (e.g. in the header or footer), not just in structured data.";
+  } else {
+    napPts2 = 1.5;
+    napDetail2 = "No phone number in structured data to verify against";
+    napFix2 = "Add a \"telephone\" field to your JSON-LD structured data matching the phone number shown on the page.";
+  }
+  addCheck("local_geo", "NAP consistency (phone matches structured data)", napPts2, 3, napDetail2, napFix2);
+  geoCat += napPts2;
+
+  result.categories.local_geo = geoCat;
 
   finish(result);
   result.fetch_seconds = round1((Date.now() - started) / 1000);

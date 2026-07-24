@@ -48,6 +48,16 @@
   .pts-zero { color: var(--red); }
   .check-fix { color: var(--accent); font-size: 12.5px; margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--accent); }
   .check-fix b { color: var(--text); }
+  .priority-block { background: linear-gradient(180deg, rgba(108,140,255,0.08), rgba(108,140,255,0)); border: 1px solid var(--accent); border-radius: 16px; padding: 24px 26px; margin: 0 0 20px; }
+  .priority-block h3 { margin: 0 0 2px; font-size: 17px; }
+  .priority-block .priority-desc { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .priority-item { display: flex; gap: 14px; padding: 12px 0; border-top: 1px solid rgba(108,140,255,0.2); }
+  .priority-item:first-of-type { border-top: none; padding-top: 0; }
+  .priority-rank { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #0b0d12; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .priority-body .priority-name { font-size: 14.5px; font-weight: 600; }
+  .priority-body .priority-gap { color: var(--yellow); font-size: 12.5px; font-weight: 600; margin-left: 6px; }
+  .priority-body .priority-fix-text { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .priority-empty { color: var(--green); font-size: 14px; font-weight: 600; }
   footer.note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 40px; }
   a { color: var(--accent); }
 </style>
@@ -114,6 +124,36 @@ function render(result) {
       <div class="sub">HTTP ${esc(result.status_code)} · ${esc(result.size_kb)} KB · fetched in ${esc(result.fetch_seconds)}s · raw ${esc(result.raw_points)}/${esc(result.max_points)} points</div>
     </div>`;
   report.appendChild(scoreBlock);
+
+  const priorityBlock = document.createElement("div");
+  priorityBlock.className = "priority-block";
+  const fixable = result.checks
+    .filter((c) => c.fix)
+    .map((c) => ({ ...c, gap: Math.round((c.max - c.points) * 10) / 10 }))
+    .sort((a, b) => b.gap - a.gap)
+    .slice(0, 5);
+  if (fixable.length) {
+    let itemsHtml = "";
+    fixable.forEach((c, i) => {
+      itemsHtml += `
+        <div class="priority-item">
+          <div class="priority-rank">${i + 1}</div>
+          <div class="priority-body">
+            <span class="priority-name">${esc(c.name)}</span><span class="priority-gap">+${esc(c.gap)} pts available</span>
+            <div class="priority-fix-text">${esc(c.fix)}</div>
+          </div>
+        </div>`;
+    });
+    priorityBlock.innerHTML = `
+      <h3>Priority Fixes</h3>
+      <p class="priority-desc">Ranked by points available — start here for the fastest score improvement.</p>
+      ${itemsHtml}`;
+  } else {
+    priorityBlock.innerHTML = `
+      <h3>Priority Fixes</h3>
+      <p class="priority-empty">Every check is at full marks — nothing to prioritize.</p>`;
+  }
+  report.appendChild(priorityBlock);
 
   for (const catKey of CAT_ORDER) {
     const catChecks = result.checks.filter((c) => c.category === catKey);

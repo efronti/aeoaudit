@@ -460,12 +460,25 @@ async function audit(rawUrl) {
   return result;
 }
 
+function gradeOf(score) {
+  return score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+}
+
+const AEO_CATEGORY_KEYS = ["fetchability", "seo", "semantic", "answer_engine", "content_quality"];
+
 function finish(result) {
   const raw = Object.values(result.categories).reduce((a, b) => a + b, 0);
   result.raw_points = round1(raw);
   const score = Math.round((raw / result.max_points) * 100);
   result.score = score;
-  result.grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+  result.grade = gradeOf(score);
+
+  const aeoMax = AEO_CATEGORY_KEYS.reduce((a, k) => a + MAX_POINTS[k], 0);
+  const aeoRaw = AEO_CATEGORY_KEYS.reduce((a, k) => a + (result.categories[k] || 0), 0);
+  result.aeo_max = aeoMax;
+  result.aeo_raw = round1(aeoRaw);
+  result.aeo_score = Math.round((aeoRaw / aeoMax) * 100);
+  result.aeo_grade = gradeOf(result.aeo_score);
 }
 
 exports.handler = async function (event) {
